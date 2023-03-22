@@ -1,0 +1,15 @@
+[Unit]
+Description=Nitro Enclave lookup service
+After=network.target
+
+[Service]
+ExecStart=/bin/start-enclave.sh
+ExecStop=/bin/terminate-enclave.sh
+RemainAfterExit=yes
+Type=simple
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=default.target
+RequiredBy=network.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Server that runs outside the enclave
+PartOf=nitro-lookup.service
+
+[Service]
+ExecStart=/bin/python3 /var/tmp/instance-server.py 5005
+Type=simple
+Restart=on-failure
+User=root
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+RequiredBy=network.target
