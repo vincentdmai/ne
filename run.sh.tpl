@@ -4,7 +4,7 @@ sudo mkdir /var/lib/docker
 sudo mkdir ${nitro_lookup_dir}
 sudo /usr/bin/lsblk
 sudo /usr/bin/df -h
-sudo cat /etc/fstab
+# sudo cat /etc/fstab
 sudo amazon-linux-extras install aws-nitro-enclaves-cli -y
 sudo yum install aws-nitro-enclaves-cli-devel git -y
 sudo usermod -aG ne ec2-user
@@ -27,7 +27,6 @@ sudo chmod 0755 /bin/nitro-lookup.sh
 sudo chmod 0755 /bin/terminate-enclave.sh
 sudo chmod 0755 /bin/start-enclave*.sh
 sudo cp ${nitro_lookup_dir}/nitro-lookup.service /etc/systemd/system/nitro-lookup.service
-sudo cp ${nitro_lookup_dir}/lookup-server.service /etc/systemd/system/lookup-server.service
+# sudo cp ${nitro_lookup_dir}/lookup-server.service /etc/systemd/system/lookup-server.service
 sudo systemctl enable nitro-lookup.service
-sudo systemctl enable lookup-server.service
-
+# sudo systemctl enable lookup-server.service

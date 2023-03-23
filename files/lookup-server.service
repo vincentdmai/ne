@@ -3,7 +3,7 @@ Description=Server that runs outside the enclave
 PartOf=nitro-lookup.service
 
 [Service]
-ExecStart=/bin/python3 /var/tmp/instance-server.py 5005
+ExecStart=/bin/python3 /var/tmp/instance-server.py 80
 Type=simple
 Restart=on-failure
 User=root

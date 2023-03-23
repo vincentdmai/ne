@@ -4,17 +4,14 @@ import argparse
 import socket
 import sys
 import json
-import urllib.request
 import redis
 import base64
-import re
+import pickle
 
-r = redis.Redis(unix_socket_path='/run/redis.sock')
-for i in range(1,100):
-	r.set('foo{}'.format(i), 'bar{}'.format(i))
+redis_client = redis.Redis(unix_socket_path='/run/redis.sock')
 
-# Running server you have pass port the server  will listen to. For Example:
-# $ python3 /app/server.py server 5005
+# Running server you have to pass port the server
+# $ python3 /app/server.py server <port>
 class VsockListener:
 	# Server
 	def __init__(self, conn_backlog=128):
@@ -30,24 +27,30 @@ class VsockListener:
 		# Receive data from a remote endpoint
 		while True:
 			try:
-				print("Let's accept stuff")
+				print("Awaiting...")
 				(from_client, (remote_cid, remote_port)) = self.sock.accept()
 				print("Connection from " + str(from_client) + str(remote_cid) + str(remote_port))
 				
-				query = json.loads(base64.b64decode(from_client.recv(1024).decode()).decode())
+				# Receive connections from other end of socket
+				query = pickle.loads(base64.b64decode(from_client.recv(sys.maxsize)))
 				print("Message received: {}".format(query))
-				query_type = list(query.keys())[0]
-				query = query[query_type]
+    
+				# Will receive tuple in the format (COMMAND, ID, DATA)
+				query_type = query[0].lower()
+				data_key = query[1]
+				data = query[2]
 				
-				print("{} {}".format(query_type, query))
+				print("{} {}".format(query_type, data))
 				if query_type == 'get':
-					response = query_redis(query)
+					response = get_all_in_redis()
 				elif query_type == 'set':
-					response = put_in_redis(query)
+					response = put_in_redis(data_key, data)
 				else:
 					response = "Bad query type"
-				
-				# Send back the response                 
+     
+				print(str(response))
+    
+				# Send back the response
 				from_client.send(str(response).encode())
 	
 				from_client.close()
@@ -58,30 +61,36 @@ class VsockListener:
 def server_handler(args):
 	server = VsockListener()
 	server.bind(args.port)
-	print("Started listening to port : ",str(args.port))
+	print("Started listening to port : ", str(args.port))
 	server.recv_data()
 
-def put_in_redis(query):
-	for key in query.keys():
-		value = query[key]
-		r.set(key, value)
-		print("Setting {} to {}".format(key, value))
-	return "Put the data in"
+def put_in_redis(key, value):
+	redis_client.set(key, value)
+	print("Setting {} to {}".format(key, value))
+	return "SUCCESS"
 
 # Get list of current ip ranges for the S3 service for a region.
 # Learn more here: https://docs.aws.amazon.com/general/latest/gr/aws-ip-ranges.html#aws-ip-download 
-def query_redis(query):
-	value = r.get(query)
-	print("Value is: {}".format(value))
-	if value != None:
-		print("Key exists")
-		return "The key exists"
-	elif value == None:
-		print("Key doesn't exist")
-		return "They key does not exist"
-	else:
-		print("In Else")
-		return "Somehow here with value: {}".format(value)
+# def get_all_in_redis(query):
+# 	value = redis_client.get(query).decode()
+# 	print("Value is: {}".format(value))
+# 	if value != None:
+# 		print("Key exists")
+# 		return value
+# 	else:
+# 		print("Key doesn't exist")
+# 		return "They key does not exist"
+
+def get_all_in_redis():
+  # Just make sure things get mapped correctly from key -> value during testing
+  all_keys = [key.decode() for key in redis_client.keys('*')]
+  all_values = [value.decode() for value in redis_client.mget(all_keys)]
+  key_values = dict(zip(all_keys, all_values))
+  # for key in all_keys:
+  #   print(f'key: {key} type: {type(key)}')
+  #   if type(key) == 'string':
+  #     key_values.append({key: redis_client.get(key)})
+  return key_values
 
 
 def main():

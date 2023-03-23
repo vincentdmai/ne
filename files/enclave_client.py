@@ -40,7 +40,7 @@ class VsockStream:
 
 
 def client_handler(args):
-	# creat socket tream to the Nitro Enclave
+	# Create socket stream to the Nitro Enclave
 	client = VsockStream()
 	endpoint = (args.cid, args.port)
 	print("Endpoint Arguments ", str(args.cid), str(args.port))

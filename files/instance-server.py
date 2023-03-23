@@ -53,9 +53,9 @@ if __name__ == '__main__':
                         help='Specify alternate bind address '
                              '[default: all interfaces]')
     parser.add_argument('port', action='store',
-                        default=8000, type=int,
+                        default=80, type=int,
                         nargs='?',
-                        help='Specify alternate port [default: 8000]')
+                        help='Specify alternate port [default: 80]')
     args = parser.parse_args()
 
     http.server.test(HandlerClass=HTTPRequestHandler, port=args.port, bind=args.bind)
