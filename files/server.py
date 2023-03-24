@@ -7,11 +7,17 @@ import json
 import redis
 import base64
 import pickle
+import time
+
+NUMBER_BYTES_IN_KB = 1024
+MAX_RECV_ALLOC_KB = 1 * NUMBER_BYTES_IN_KB
 
 redis_client = redis.Redis(unix_socket_path='/run/redis.sock')
 
 # Running server you have to pass port the server
 # $ python3 /app/server.py server <port>
+
+
 class VsockListener:
 	# Server
 	def __init__(self, conn_backlog=128):
@@ -29,30 +35,45 @@ class VsockListener:
 			try:
 				print("Awaiting...")
 				(from_client, (remote_cid, remote_port)) = self.sock.accept()
-				print("Connection from " + str(from_client) + str(remote_cid) + str(remote_port))
-				
-				# Receive connections from other end of socket
-				query = pickle.loads(base64.b64decode(from_client.recv(sys.maxsize)))
-				print("Message received: {}".format(query))
+				print("Connection from " + str(from_client) +
+				      str(remote_cid) + str(remote_port))
     
+				receive_start_time = time.time()
+				byte_data = b""
+				while True:
+					chunk = from_client.recv(MAX_RECV_ALLOC_KB)
+					if not chunk:
+						print("BROKE")
+						break
+					byte_data += chunk
+				receive_end_time = time.time() - receive_start_time
+				print("finished receiving time: {}".format(receive_end_time))
+     
+				query = pickle.loads(base64.b64decode(byte_data))
+
+				# Receive connections from other end of socket.recv() parameter is how much you allocate to the buffer. If you allocate all your memory you can't send anything
+				# query = pickle.loads(base64.b64decode(from_client.recv(MAX_RECV_ALLOC_KB)))
+				# print("Message received: {}".format(query))
+
 				# Will receive tuple in the format (COMMAND, ID, DATA)
 				query_type = query[0].lower()
 				data_key = query[1]
 				data = query[2]
-				
-				print("{} {}".format(query_type, data))
+
+				# print("{} {}".format(query_type, data))
 				if query_type == 'get':
 					response = get_all_in_redis()
 				elif query_type == 'set':
 					response = put_in_redis(data_key, data)
 				else:
 					response = "Bad query type"
-     
-				print(str(response))
-    
+
+				# print(str(response))
+				# print(type(response))
+
 				# Send back the response
-				from_client.send(str(response).encode())
-	
+				from_client.send(base64.b64encode(pickle.dumps(response)))
+
 				from_client.close()
 				print("Client call closed")
 			except Exception as ex:
@@ -65,32 +86,12 @@ def server_handler(args):
 	server.recv_data()
 
 def put_in_redis(key, value):
-	redis_client.set(key, value)
-	print("Setting {} to {}".format(key, value))
-	return "SUCCESS"
-
-# Get list of current ip ranges for the S3 service for a region.
-# Learn more here: https://docs.aws.amazon.com/general/latest/gr/aws-ip-ranges.html#aws-ip-download 
-# def get_all_in_redis(query):
-# 	value = redis_client.get(query).decode()
-# 	print("Value is: {}".format(value))
-# 	if value != None:
-# 		print("Key exists")
-# 		return value
-# 	else:
-# 		print("Key doesn't exist")
-# 		return "They key does not exist"
+	return redis_client.set(key, value)
 
 def get_all_in_redis():
-  # Just make sure things get mapped correctly from key -> value during testing
   all_keys = [key.decode() for key in redis_client.keys('*')]
-  all_values = [value.decode() for value in redis_client.mget(all_keys)]
-  key_values = dict(zip(all_keys, all_values))
-  # for key in all_keys:
-  #   print(f'key: {key} type: {type(key)}')
-  #   if type(key) == 'string':
-  #     key_values.append({key: redis_client.get(key)})
-  return key_values
+  all_values = [json.loads(value.decode()) for value in redis_client.mget(all_keys)]
+  return dict(zip(all_keys, all_values))
 
 
 def main():
