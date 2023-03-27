@@ -14,6 +14,7 @@ MAX_RECV_ALLOC_KB = 64 * NUMBER_BYTES_IN_KB
 
 redis_client = redis.Redis(unix_socket_path='/run/redis.sock')
 
+
 class VsockListener:
     # Server
     def __init__(self, conn_backlog=128):
@@ -34,7 +35,6 @@ class VsockListener:
                 print("Connection from " + str(from_client) +
                       str(remote_cid) + str(remote_port))
 
-                receive_start_time = time.time()
                 byte_data = b""
                 while True:
                     chunk = from_client.recv(MAX_RECV_ALLOC_KB)
@@ -43,8 +43,6 @@ class VsockListener:
                         byte_data = byte_data[:len(byte_data)-5]
                         print("BROKE")
                         break
-                receive_end_time = int(time.time() - receive_start_time) * 1000
-                print("finished receiving time: {}".format(receive_end_time))
 
                 query = pickle.loads(base64.b64decode(byte_data))
 
@@ -57,13 +55,14 @@ class VsockListener:
                     response = get_values_in_redis(data)
                 elif query_type == 'set':
                     response = put_in_redis(data_key, data)
+                elif query_type == 'delete':
+                    response = delete_in_redis(data)
                 else:
                     response = "Bad query type"
 
                 # Send back the response
                 from_client.sendall(base64.b64encode(pickle.dumps(response)))
                 from_client.send(b"<END>")
-                print("done sending time: {}".format(int(time.time()) * 1000 - receive_end_time))
 
                 from_client.close()
                 print("Client call closed")
@@ -78,18 +77,21 @@ def server_handler(args):
     server.recv_data()
 
 
+def get_values_in_redis(keys):
+    if len(keys) == 0:
+        return {}
+
+    all_values = [json.loads(value.decode())
+                  for value in redis_client.mget(keys)]
+    return dict(zip(keys, all_values))
+
+
 def put_in_redis(key, value):
     return redis_client.set(key, value)
-
-
-def get_values_in_redis(keys):
-		if len(keys) == 0:
-				return {}
   
-		# all_keys = [key.decode() for key in redis_client.keys('*')]
-		all_values = [json.loads(value.decode())
-									for value in redis_client.mget(keys)]
-		return dict(zip(keys, all_values))
+  
+def delete_in_redis(keys):
+	return [key for key in keys if redis_client.delete(key)]
 
 
 def main():
